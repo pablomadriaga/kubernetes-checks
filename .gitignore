@@ -1,0 +1,5 @@
+# Ignorar todos los .txt en la raíz del repo
+/*.txt
+
+# Ignorar todos los .log dentro de la carpeta "resultados"
+resultados/*.log
