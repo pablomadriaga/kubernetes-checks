@@ -39,6 +39,7 @@ check_control_plane_pods() {
           and (.metadata.namespace != "vmware-system-auth")
           and (.metadata.namespace != "vmware-system-cloud-provider")
           and (.metadata.namespace != "vmware-system-csi")
+          and (.metadata.namespace != "tkg-system")
           and (.metadata.namespace != "vmware-system-tmc")
       )] | length')
 
