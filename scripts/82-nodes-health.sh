@@ -36,8 +36,9 @@ check_node_health() {
     ')
     LIMIT_PODS=$((MAX_PODS-UMBRAL))
 
-    # Pods actuales en el nodo
-    RESPONSE_PODS=$(curl -k -s -X GET "$CLUSTER_URL/api/v1/pods?fieldSelector=spec.nodeName=$NODE" \
+    # Pods actuales en el nodo (solo pods activos, como el scheduler)
+    RESPONSE_PODS=$(curl -k -s -X GET \
+      "$CLUSTER_URL/api/v1/pods?fieldSelector=spec.nodeName=$NODE,status.phase!=Succeeded,status.phase!=Failed" \
       -H "Authorization: Bearer $TOKEN" \
       -H "Content-Type: application/json")
     CURRENT_PODS=$(echo "$RESPONSE_PODS" | jq '.items | length')
@@ -62,4 +63,3 @@ check_node_health() {
 }
 
 check_node_health
-
