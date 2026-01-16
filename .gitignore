@@ -1,5 +1,5 @@
-# Ignorar todos los .txt en la raíz del repo
+# Ignorar todos los .txt y los .ndjson en la raíz del repo
 /*.txt
-
+/*.ndjson
 # Ignorar todos los .log dentro de la carpeta "resultados"
 resultados/*.log
