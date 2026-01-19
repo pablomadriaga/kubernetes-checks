@@ -3,9 +3,10 @@
 Este es un proyecto temporal para realizar **análisis automatizados en clústeres de Kubernetes**, con el objetivo de verificar configuraciones básicas, detectar problemas comunes y recolectar señales de salud operativa.
 
 La herramienta prioriza la simplicidad y la extensibilidad: a partir de un archivo de definición de clústeres, un **script orquestador (`0-runner.sh`)** ejecuta una serie de chequeos independientes y genera resultados legibles en consola y en archivos de log.
----
 
 ---
+
+
 
 ## 🎯 Objetivo
 
