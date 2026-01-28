@@ -20,9 +20,9 @@ check_namespace_pods_health() {
       -H "Authorization: Bearer $TOKEN" \
       -H "Content-Type: application/json")
 
-    PODS=$(echo "$RESPONSE" | jq -r '.items[] | {name: .metadata.name, phase: .status.phase, conditions: .status.conditions}')
+    POD_COUNT=$(echo "$RESPONSE" | jq '.items | length')
 
-    if [ -z "$PODS" ]; then
+    if [ "$POD_COUNT" -eq 0 ]; then
       echo "  No se encontraron pods en $NS."
       continue
     fi
@@ -33,24 +33,45 @@ check_namespace_pods_health() {
       NAME=$(echo "$pod" | jq -r '.name')
       PHASE=$(echo "$pod" | jq -r '.phase')
       READY=$(echo "$pod" | jq -r '.ready')
+      IS_JOB=$(echo "$pod" | jq -r '.isJob')
 
-      if { [[ "$PHASE" != "Running" || "$READY" != "true" ]] && [[ "$PHASE" != "Succeeded" ]]; }; then
-        printf "  \e[31m✖ %s: Phase=%s Ready=%s\e[0m\n" "$NAME" "$PHASE" "$READY"
-        NO_HEALTH=1
+      if [ "$IS_JOB" = "true" ]; then
+        # Pods efímeros (Job / CronJob)
+        if [ "$PHASE" = "Failed" ]; then
+          printf "  \e[31m✖ %s (Job): Phase=%s\e[0m\n" "$NAME" "$PHASE"
+          NO_HEALTH=1
+        fi
+      else
+        # Pods long-lived
+        if { [[ "$PHASE" != "Running" || "$READY" != "true" ]] && [[ "$PHASE" != "Succeeded" ]]; }; then
+          printf "  \e[31m✖ %s: Phase=%s Ready=%s\e[0m\n" "$NAME" "$PHASE" "$READY"
+          NO_HEALTH=1
+        fi
       fi
-    done < <(echo "$RESPONSE" | jq -r '.items[] |
-      {
-        name: .metadata.name,
-        phase: .status.phase,
-        ready: ([.status.conditions[]? | select(.type=="Ready") | .status] | any(.=="True"))
-      }' | jq -c '.')
+
+    done < <(
+      echo "$RESPONSE" | jq -c '
+        .items[] |
+        {
+          name: .metadata.name,
+          phase: .status.phase,
+          ready: (
+            [.status.conditions[]? | select(.type=="Ready") | .status]
+            | any(. == "True")
+          ),
+          isJob: (
+            [.metadata.ownerReferences[]? | .kind]
+            | any(. == "Job")
+          )
+        }
+      '
+    )
 
     if [ "$NO_HEALTH" -eq 0 ]; then
-      printf "  \e[38;5;34m✔ Todos los pods en %s están OK\e[0m\n" "$NS"
+      printf "  \e[38;5;34m✔ Todos los pods están saludables\e[0m\n"
     fi
 
   done
 }
 
 check_namespace_pods_health
-
