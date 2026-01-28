@@ -3,3 +3,4 @@
 /*.ndjson
 # Ignorar todos los .log dentro de la carpeta "resultados"
 resultados/*.log
+.vscode/
