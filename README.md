@@ -43,6 +43,19 @@ Esta definición es intencionalmente simple y evolutiva.
 
 ---
 
+## Configuración local
+
+Este proyecto requiere archivos locales no versionados:
+
+- clusters.ndjson
+- exclusiones.txt
+
+Usar como referencia:
+- clusters-example.ndjson
+- exclusiones-example.txt
+
+---
+
 ### 📄 Ejemplo de `clusters.ndjson`
 
 ```json
