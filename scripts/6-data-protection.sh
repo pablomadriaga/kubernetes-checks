@@ -19,7 +19,7 @@ printf "\e[32m=== Backups o Restores que no están en estado \"Completed\" ===\e
 
 # Comprobar si la respuesta contiene "not found" o si está vacía
 if echo "$velero_crd" | grep -q "not found"; then
-  echo "  Velero no está instalado en este cluster. Omitiendo la comprobación de backups y restores."
+  printf "\033[1;33m  [WARNING]Velero no está instalado en este cluster. Omitiendo la comprobación de backups y restores.\033[0m %s\n"
   exit 0
 else
   echo "  Velero está instalado. Comenzando la comprobación de backups y restores."
@@ -56,4 +56,3 @@ else
     printf "  \e[38;5;34m✔ Todos los restores están OK\e[0m\n"
   fi
 fi
-
