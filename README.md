@@ -49,6 +49,7 @@ Este proyecto requiere archivos locales no versionados:
 
 - clusters.ndjson
 - exclusiones.txt
+- ./profile/$TU_PROFILE.list
 
 Usar como referencia:
 - clusters-example.ndjson
@@ -73,6 +74,25 @@ De forma opcional, se puede definir un archivo `exclusiones.txt` con nombres de 
 ```text
 cluster-lab
 cluster-dev
+```
+
+## 🙋 Profiles
+Es la manera de indicar los scripts que se van a ejecutar.
+
+### 📄 daily.list
+
+```text
+1-test-api.sh
+82-nodes-health.sh
+81-system-pods.sh
+6-data-protection.sh
+8-packages.sh
+```
+
+### 📄 weekly.list
+
+```text
+*
 ```
 
 ---
