@@ -26,6 +26,30 @@ Algunos ejemplos de validaciones actuales:
 Cada chequeo es un script independiente, lo que facilita su evolución y mantenimiento.
 
 ---
+## 📁 Arbol de archivos
+
+```Bash
+├── 0-runner.sh
+├── config
+│   ├── clusters.ndjson # "Definición de clusters"
+│   ├── exclusiones.txt
+│   └── ns # "Namespaces a chequear"
+│       ├── customer-ns.txt 
+│       ├── packages.txt
+│       └── system-ns.txt
+├── lib # "Librerias utilizadas en los scripts"
+│   ├── api.sh
+│   ├── log.sh
+│   └── ns.sh
+├── profiles # "Modalidad de ejecución de Scripts"
+│   ├── daily.list
+│   └── weekly.list
+├── README.md
+├── resultados
+│   └── # "Un log por script ejecutado"
+└── scripts
+    └── # "scripts disponibles"
+```
 
 ## ⚙️ Definición de clústeres
 
@@ -47,8 +71,8 @@ Esta definición es intencionalmente simple y evolutiva.
 
 Este proyecto requiere archivos locales no versionados:
 
-- clusters.ndjson
-- exclusiones.txt
+- ./config/clusters.ndjson
+- ./config/exclusiones.txt
 - ./profile/$TU_PROFILE.list
 
 Usar como referencia:
@@ -99,8 +123,14 @@ Es la manera de indicar los scripts que se van a ejecutar.
 ## ▶️ Ejecución
 Ejecutar el script principal:
 ```bash
+## Por defecto se ejecuta el perfil daily
 ./0-runner.sh
 ```
+```bash
+## Para ejecutar un perfil se escribe su nombre como parametro
+./0-runner.sh weekly
+```
+
 El script:
 
 - Procesa los clústeres definidos en `clusters.ndjson`.
@@ -141,4 +171,3 @@ En consola:
   - enriquecimiento de metadata por clúster,
   - filtrado dinámico,
   - chequeos condicionales basados en capacidades.
-
