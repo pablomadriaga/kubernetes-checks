@@ -1,48 +1,53 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -uo pipefail
+IFS=$'\n\t'
 
 CLUSTER_NAME=$1
 TOKEN=$2
 CERTIFICATE=$3
 IP=$4
-CLUSTER_URL="https://$IP:6443"
 
+#LOG_LEVEL=INFO
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+
+source "$ROOT_DIR/lib/log.sh"
+source "$ROOT_DIR/lib/api.sh"
+
+log_zone "Chequeo PVs y PVCs no Bound"
 check_pvc_status() {
-  printf "\e[32m===Analizando PVs y PVCs no Bound===\e[0m\n"
 
   # Analizar PVs
-  RESPONSE_PV=$(curl -k -s -X GET "$CLUSTER_URL/api/v1/persistentvolumes" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json")
+  RESPONSE_PV=$(api_get "$IP" "$TOKEN" "/api/v1/persistentvolumes")
 
   if [ $? -ne 0 ] || [ -z "$RESPONSE_PV" ]; then
-    echo "  Error: Falló la solicitud a la API de PVs."
+    log_error "✖ Error: Falló la solicitud a la API de PVs."
     exit 1
   fi
 
   PVs_NOT_BOUND=$(echo "$RESPONSE_PV" | jq '[.items[] | select(.status.phase != "Bound")] | length')
 
   if [ "$PVs_NOT_BOUND" -eq 0 ]; then
-    printf "  \e[38;5;34m✔ Todos los PVs están en estado Bound - OK\e[0m\n"
+    log_success "✔ Todos los PVs están en estado Bound - OK"
   else
-    printf "  \e[31m✖ PVs no Bound: %s\e[0m\n" "$PVs_NOT_BOUND"
+    log_error "✖ PVs no Bound: %s" "$PVs_NOT_BOUND"
   fi
 
   # Analizar PVCs
-  RESPONSE_PVC=$(curl -k -s -X GET "$CLUSTER_URL/api/v1/persistentvolumeclaims" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json")
+  RESPONSE_PVC=$(api_get "$IP" "$TOKEN" "/api/v1/persistentvolumeclaims")
 
   if [ $? -ne 0 ] || [ -z "$RESPONSE_PVC" ]; then
-    echo "  Error: Falló la solicitud a la API de PVCs."
+    log_error "✖ Error: Falló la solicitud a la API de PVCs."
     exit 1
   fi
 
   PVCs_NOT_BOUND=$(echo "$RESPONSE_PVC" | jq '[.items[] | select(.status.phase != "Bound")] | length')
 
   if [ "$PVCs_NOT_BOUND" -eq 0 ]; then
-    printf "  \e[38;5;34m✔ Todos los PVCs están en estado Bound - OK\e[0m\n"
+    log_success "✔ Todos los PVCs están en estado Bound - OK"
   else
-    printf "  \e[31m✖ PVCs no Bound: %s\e[0m\n" "$PVCs_NOT_BOUND"
+    log_error "✖ PVCs no Bound: %s" "$PVCs_NOT_BOUND"
   fi
 
   # Salir con código 1 si hay PVs o PVCs no Bound

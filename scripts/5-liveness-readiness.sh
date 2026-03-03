@@ -1,62 +1,58 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -uo pipefail
+IFS=$'\n\t'
 
 CLUSTER_NAME=$1
 TOKEN=$2
 CERTIFICATE=$3
 IP=$4
-CLUSTER_URL="https://$IP:6443"
 
-# Definir los namespaces a excluir
-EXCLUDED_NAMESPACES=("kube-system" "tanzu-system" "tanzu-system-ingress" "tanzu-system-monitoring" \
-"vmware-system-auth" "vmware-system-cloud-provider" "vmware-system-csi" "vmware-system-tmc" \
-"vmware-system-tsm" "tkg-system" "cert-manager" "gatekeeper-system" \
-"tanzu-observability-saas" "tanzu-package-repo-global")
+#LOG_LEVEL=DEBUG
 
-# Convertir el array de namespaces a formato JSON para jq
-EXCLUDED_JSON=$(echo "${EXCLUDED_NAMESPACES[@]}" | jq -R -s 'split(" ")')
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
-printf "\e[32m===Cantidad de contenedores sin livenessProbe o readinessProbe===\e[0m\n"
+source "$ROOT_DIR/lib/log.sh"
+source "$ROOT_DIR/lib/api.sh"
+source "$ROOT_DIR/lib/ns.sh"
+
+log_zone "Chequeo cantidad de contenedores sin livenessProbe o readinessProbe"
 
 # Obtener todos los deployments
-RESPONSE=$(curl -k -s -X GET "$CLUSTER_URL/apis/apps/v1/deployments" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json")
+RESPONSE=$(api_get "$IP" "$TOKEN" "/apis/apps/v1/deployments")
 
-# Verificar que la solicitud fue exitosa
-if [ $? -ne 0 ] || [ -z "$RESPONSE" ]; then
-  echo "  Error: Falló la solicitud a la API de deployments."
-  exit 1
+# Chequeo response
+if ! echo "$RESPONSE" | jq -e '
+  .kind == "DeploymentList" and
+  (.items | type == "array")
+' >/dev/null; then
+  log_error "Respuesta inesperada de API"
+  exit 2
 fi
 
 # Contar contenedores sin livenessProbe
-NO_LIVENESS=$(echo "$RESPONSE" | jq --argjson excludedNamespaces "$EXCLUDED_JSON" '
+NO_LIVENESS=$(echo "$RESPONSE" | jq --argjson excludedNamespaces "$NAMESPACES_JSON" '
   [.items[] | select(.metadata.namespace | IN($excludedNamespaces[]) | not)
    | .spec.template.spec.containers[]
    | select(.livenessProbe == null)
   ] | length')
 
 # Contar contenedores sin readinessProbe
-NO_READINESS=$(echo "$RESPONSE" | jq --argjson excludedNamespaces "$EXCLUDED_JSON" '
+NO_READINESS=$(echo "$RESPONSE" | jq --argjson excludedNamespaces "$NAMESPACES_JSON" '
   [.items[] | select(.metadata.namespace | IN($excludedNamespaces[]) | not)
    | .spec.template.spec.containers[]
    | select(.readinessProbe == null)
   ] | length')
 
-# Mostrar resultados con ✔/✖
+# Mostrar resultados con ✔ /✖
 if [ "$NO_LIVENESS" -eq 0 ]; then
-  printf "  \e[38;5;34m✔ Todos los contenedores tienen livenessProbe - OK\e[0m\n"
+  log_success "✔ Todos los contenedores tienen livenessProbe - OK"
 else
-  printf "  \e[31m✖ Contenedores sin livenessProbe: %s\e[0m\n" "$NO_LIVENESS"
+  log_error "✖ Contenedores sin livenessProbe: %s" "$NO_LIVENESS"
 fi
 
 if [ "$NO_READINESS" -eq 0 ]; then
-  printf "  \e[38;5;34m✔ Todos los contenedores tienen readinessProbe - OK\e[0m\n"
+  log_success "✔ Todos los contenedores tienen readinessProbe - OK"
 else
-  printf "  \e[31m✖ Contenedores sin readinessProbe: %s\e[0m\n" "$NO_READINESS"
+  log_error "✖ Contenedores sin readinessProbe: %s" "$NO_READINESS"
 fi
-
-# Salir con código 1 si hubo algún error
-if [ "$NO_LIVENESS" -gt 0 ] || [ "$NO_READINESS" -gt 0 ]; then
-  exit 1
-fi
-

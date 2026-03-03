@@ -1,19 +1,29 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -uo pipefail
+IFS=$'\n\t'
 
 CLUSTER_NAME=$1
 TOKEN=$2
 CERTIFICATE=$3
 IP=$4
+
+#LOG_LEVEL=INFO
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+
+source "$ROOT_DIR/lib/log.sh"
+source "$ROOT_DIR/lib/api.sh"
+
+
 CLUSTER_URL="https://$IP:6443"
 UMBRAL=2
 
 check_node_health() {
-  printf "\e[32m=== Analizando problemas de estado de los nodos o cerca del límite de pods ===\e[0m\n"
+  log_zone "Analizando problemas de estado de los nodos o cerca del límite de pods"
 
   # Obtener lista de nodos
-  RESPONSE_NODES=$(curl -k -s -X GET "$CLUSTER_URL/api/v1/nodes" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json")
+  RESPONSE_NODES=$(api_get "$IP" "$TOKEN" "/api/v1/nodes")
 
   ERROR_NODES=0
 
@@ -37,16 +47,13 @@ check_node_health() {
     LIMIT_PODS=$((MAX_PODS-UMBRAL))
 
     # Pods actuales en el nodo (solo pods activos, como el scheduler)
-    RESPONSE_PODS=$(curl -k -s -X GET \
-      "$CLUSTER_URL/api/v1/pods?fieldSelector=spec.nodeName=$NODE,status.phase!=Succeeded,status.phase!=Failed" \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json")
+    RESPONSE_PODS=$(api_get "$IP" "$TOKEN" "/api/v1/pods?fieldSelector=spec.nodeName=$NODE,status.phase!=Succeeded,status.phase!=Failed")
     CURRENT_PODS=$(echo "$RESPONSE_PODS" | jq '.items | length')
 
     # Evaluar problemas
     if [ -n "$CONDITIONS" ] || [ "$CURRENT_PODS" -gt "$LIMIT_PODS" ]; then
       ERROR_NODES=$((ERROR_NODES+1))
-      printf "  \e[31m✖ Nodo: $NODE\e[0m\n"
+      log_error "✖ Nodo: $NODE"
       [ -n "$CONDITIONS" ] && echo "    Condiciones críticas:" && echo "$CONDITIONS" | sed 's/^/      /'
       [ "$CURRENT_PODS" -gt "$LIMIT_PODS" ] && echo "    Pods actuales: $CURRENT_PODS / $MAX_PODS (umbral: $LIMIT_PODS)"
     fi
@@ -55,10 +62,10 @@ check_node_health() {
 
   # Mensaje final
   if [ "$ERROR_NODES" -gt 0 ]; then
-    printf "  \e[31m✖ Total de nodos con problemas: $ERROR_NODES\e[0m\n"
+    log_error "✖ Total de nodos con problemas: $ERROR_NODES"
     exit 1
   else
-    printf "  \e[38;5;34m✔ Todos los nodos están OK\e[0m\n"
+    log_success "✔ Todos los nodos están OK"
   fi
 }
 

@@ -1,142 +1,171 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -uo pipefail
+IFS=$'\n\t'
 
-# -----------------------------
-# Configuración general
-# -----------------------------
-SCRIPT_DIR="./scripts"
-PROFILES_DIR="./profiles"
-CLUSTERS_FILE="clusters.ndjson"
-EXCLUSIONES_FILE="exclusiones.txt"
-RESULTS_DIR="resultados"
-TOTAL_WIDTH=80
+# ==========================
+# 📦 Configuración
+# ==========================
+readonly SCRIPT_DIR="./scripts"
+readonly PROFILES_DIR="./profiles"
+readonly CLUSTERS_FILE="./config/clusters.ndjson"
+readonly EXCLUSIONES_FILE="./config/exclusiones.txt"
+readonly RESULTS_DIR="./resultados"
+readonly LIB_DIR="./lib"
 
-PROFILE="${1:-daily}"
-PROFILE_FILE="${PROFILES_DIR}/${PROFILE}.list"
+readonly TOTAL_WIDTH=80
+readonly PROFILE="${1:-daily}"
+readonly PROFILE_FILE="${PROFILES_DIR}/${PROFILE}.list"
 
-skip_cluster=false
+readonly RUN_DATE="$(date +%F)"
+readonly STARTED_AT="$(date -Iseconds)"
 
-RUN_DATE=$(date +%F)
-STARTED_AT=$(date -Iseconds)
+LOG_LEVEL=INFO
 
-mkdir -p "$RESULTS_DIR"
-rm -f "$RESULTS_DIR"/*.log
+# ==========================
+# 📚 Cargar librerías
+# ==========================
+source "${LIB_DIR}/log.sh"
+source "${LIB_DIR}/api.sh"
 
-# -----------------------------
-# Validar perfil
-# -----------------------------
-if [[ ! -f "$PROFILE_FILE" ]]; then
-  echo -e "\e[38;5;196m[ERROR] Perfil '$PROFILE' no encontrado (${PROFILE_FILE})\e[0m"
-  exit 1
-fi
+# ==========================
+# 🔧 Utilidades
+# ==========================
+load_profile() {
+  if [[ ! -f "$PROFILE_FILE" ]]; then
+    log_error "Perfil '$PROFILE' no encontrado (${PROFILE_FILE})"
+    exit 1
+  fi
 
-echo -e "\e[38;5;45m[INFO] Perfil activo: ${PROFILE} (default=daily)\e[0m"
+  log_info "Perfil activo: ${PROFILE}"
 
-# -----------------------------
-# Leer scripts del perfil
-# -----------------------------
-mapfile -t PROFILE_SCRIPTS < <(grep -vE '^\s*#|^\s*$' "$PROFILE_FILE")
+  mapfile -t PROFILE_SCRIPTS < <(
+    grep -vE '^\s*#|^\s*$' "$PROFILE_FILE"
+  )
+}
 
 should_run_script() {
   local script_name=$1
+
   for s in "${PROFILE_SCRIPTS[@]}"; do
     [[ "$s" == "*" ]] && return 0
     [[ "$s" == "$script_name" ]] && return 0
   done
+
   return 1
 }
 
-# -----------------------------
-# Leer exclusiones
-# -----------------------------
-EXCLUDED_CLUSTERS=()
-if [[ -f "$EXCLUSIONES_FILE" ]]; then
-  mapfile -t EXCLUDED_CLUSTERS < "$EXCLUSIONES_FILE"
-else
-  echo -e "\e[38;5;245m[AVISO] No se encontró exclusiones.txt. Se procesarán todos los clusters.\e[0m"
-fi
+load_exclusions() {
+  EXCLUDED_CLUSTERS=()
+
+  if [[ -f "$EXCLUSIONES_FILE" ]]; then
+    mapfile -t EXCLUDED_CLUSTERS < <(
+      sed 's/\r$//; s/[[:space:]]*$//' "$EXCLUSIONES_FILE" |
+      grep -vE '^\s*$'
+    )
+    log_info "Exclusiones cargadas: ${#EXCLUDED_CLUSTERS[@]}"
+  else
+    log_warn "No se encontró exclusiones.txt"
+  fi
+}
 
 should_skip_cluster() {
   local cluster=$1
+
   for excl in "${EXCLUDED_CLUSTERS[@]}"; do
     [[ "$cluster" == "$excl" ]] && return 0
   done
+
   return 1
 }
 
-# -----------------------------
-# Procesar clusters (NDJSON)
-# -----------------------------
-while IFS= read -r line || [[ -n "$line" ]]; do
-
-  [[ -z "$line" ]] && continue
-
-  if ! echo "$line" | jq -e '
-      has("name") and
-      has("api") and (.api | has("ip")) and
-      has("auth") and (.auth | has("token") and has("ca_cert_b64"))
-    ' >/dev/null; then
-    echo -e "\e[38;5;196m[ERROR] Línea inválida en clusters.ndjson:\e[0m"
-    echo "$line"
-    continue
-  fi
-
-  CLUSTER_NAME=$(jq -r '.name' <<<"$line")
-  ENV=$(jq -r '.env // "unknown"' <<<"$line")
-  CRITICALITY=$(jq -r '.criticality // "unknown"' <<<"$line")
-
-  TOKEN=$(jq -r '.auth.token' <<<"$line")
-  CERTIFICATE=$(jq -r '.auth.ca_cert_b64' <<<"$line")
-  IP=$(jq -r '.api.ip' <<<"$line")
-
-  if [[ "$TOKEN" != eyJ* ]]; then
-    echo -e "\e[38;5;196m[ERROR] Token para $CLUSTER_NAME no parece JWT válido\e[0m"
-    continue
-  fi
-
-  if should_skip_cluster "$CLUSTER_NAME"; then
-    echo -e "\e[38;5;245m>>>>> Omitiendo cluster $CLUSTER_NAME (exclusiones.txt)\e[0m"
-    continue
-  fi
-
-  REMAINING_WIDTH=$((TOTAL_WIDTH - 32 - ${#CLUSTER_NAME}))
-  printf "\e[38;5;214m===========Cluster: %-*s%*s\e[0m\n" \
-    32 "$CLUSTER_NAME" \
-    "$REMAINING_WIDTH" \
-    "================================================================================="
-
-  echo -e "\e[38;5;245m[CTX] env=${ENV} | criticality=${CRITICALITY}\e[0m"
+run_scripts_for_cluster() {
+  local cluster_name=$1
+  local env=$2
+  local criticality=$3
+  local token=$4
+  local certificate=$5
+  local ip=$6
 
   for script in "$SCRIPT_DIR"/*.sh; do
     [[ -x "$script" ]] || continue
 
+    local script_name
     script_name=$(basename "$script")
+
     should_run_script "$script_name" || continue
 
-    log_file="${RESULTS_DIR}/${script_name%.sh}.log"
+    local log_file="${RESULTS_DIR}/${script_name%.sh}.log"
 
-    output=$("$script" "$CLUSTER_NAME" "$TOKEN" "$CERTIFICATE" "$IP")
-    status=$?
-
+    # Header en archivo
     {
-      echo "======= ${CLUSTER_NAME} | env=${ENV} | criticality=${CRITICALITY} ======="
-      echo "$output"
+      printf "======= %s | env=%s | criticality=%s =======\n" \
+        "$cluster_name" "$env" "$criticality"
     } >> "$log_file"
 
-    echo "$output"
+    # Ejecutar mostrando salida en tiempo real y guardando en archivo
+    "$script" "$cluster_name" "$token" "$certificate" "$ip" \
+      | tee -a "$log_file"
 
-    if [[ "$script_name" == "1-test-api.sh" && $status -ne 0 ]]; then
-      echo -e "\e[38;5;202m>>>>> Falló test_api. Saltando al próximo cluster\e[0m"
-      skip_cluster=true
-      break
+    local exit_code=${PIPESTATUS[0]}
+
+    # Si hubo error técnico real (exit != 0)
+    if [[ "$exit_code" -ne 0 ]]; then
+      log_info "Error técnico ejecutando $script_name en $cluster_name (exit=$exit_code)"
     fi
   done
+}
 
-  $skip_cluster && skip_cluster=false && continue
+process_clusters() {
+  while IFS= read -r line || [[ -n "$line" ]]; do
 
-done < "$CLUSTERS_FILE"
+    [[ -z "$line" ]] && continue
 
+    local cluster_name
+    cluster_name=$(jq -r '.name' <<<"$line")
 
-cat > ${RESULTS_DIR}/run.json <<EOF
+    local env
+    env=$(jq -r '.env // "unknown"' <<<"$line")
+
+    local criticality
+    criticality=$(jq -r '.criticality // "unknown"' <<<"$line")
+
+    local token
+    token=$(jq -r '.auth.token' <<<"$line")
+
+    local certificate
+    certificate=$(jq -r '.auth.ca_cert_b64' <<<"$line")
+
+    local ip
+    ip=$(jq -r '.api.ip' <<<"$line")
+
+    if should_skip_cluster "$cluster_name"; then
+      log_zone "Cluster $cluster_name excluido por configuración"
+      continue
+    fi
+
+    log_section "Cluster: $cluster_name"
+    log_info "env=${env} | criticality=${criticality}"
+
+    if ! api_health_check "$ip" "$token"; then
+      log_error "API cluster $cluster_name no responde. Saltando cluster."
+      continue
+    fi
+
+    log_success "API cluster $cluster_name OK"
+
+    run_scripts_for_cluster \
+      "$cluster_name" \
+      "$env" \
+      "$criticality" \
+      "$token" \
+      "$certificate" \
+      "$ip"
+
+  done < "$CLUSTERS_FILE"
+}
+
+write_run_metadata() {
+  cat > "${RESULTS_DIR}/run.json" <<EOF
 {
   "run_id": "${RUN_DATE}",
   "profile": "${PROFILE}",
@@ -145,3 +174,22 @@ cat > ${RESULTS_DIR}/run.json <<EOF
   "status": "completed"
 }
 EOF
+}
+
+prepare_environment() {
+  mkdir -p "$RESULTS_DIR"
+  rm -f "$RESULTS_DIR"/*.log
+}
+
+# ==========================
+# 🚀 Main
+# ==========================
+main() {
+  prepare_environment
+  load_profile
+  load_exclusions
+  process_clusters
+  write_run_metadata
+}
+
+main "$@"
