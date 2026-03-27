@@ -6,12 +6,21 @@ CLUSTER_NAME=$1
 TOKEN=$2
 CERTIFICATE=$3
 IP=$4
-MAX_RESTARTS=10
+ENV=$5
+
+if [[ "${ENV,,}" == "prod" || "${ENV,,}" == "production" ]]; then
+  MAX_RESTARTS=0
+else
+  MAX_RESTARTS=3
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 source "$ROOT_DIR/lib/log.sh"
+
+log_info "Entorno: $ENV - MAX_RESTARTS: $MAX_RESTARTS"
+
 source "$ROOT_DIR/lib/api.sh"
 source "$ROOT_DIR/lib/ns.sh"
 

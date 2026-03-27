@@ -6,6 +6,7 @@ CLUSTER_NAME=$1
 TOKEN=$2
 CERTIFICATE=$3
 IP=$4
+ENV=$5
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"

@@ -6,6 +6,7 @@ CLUSTER_NAME=$1
 TOKEN=$2
 CERTIFICATE=$3
 IP=$4
+ENV=$5
 
 WIDTH=$(tput cols)
 MAX_NS=$((WIDTH / 3))

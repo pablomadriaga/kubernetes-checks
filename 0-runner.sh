@@ -103,7 +103,7 @@ run_scripts_for_cluster() {
     } >> "$log_file"
 
     # Ejecutar mostrando salida en tiempo real y guardando en archivo
-    "$script" "$cluster_name" "$token" "$certificate" "$ip" \
+    "$script" "$cluster_name" "$token" "$certificate" "$ip" "$env" \
       | tee -a "$log_file"
 
     local exit_code=${PIPESTATUS[0]}
