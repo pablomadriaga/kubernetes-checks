@@ -25,19 +25,25 @@ check_node_health() {
   log_zone "Analizando problemas de estado de los nodos o cerca del límite de pods"
 
   # Obtener lista de nodos
-  RESPONSE_NODES=$(api_get "$IP" "$TOKEN" "/api/v1/nodes")
+  local RESPONSE_NODES
+  RESPONSE_NODES=$(api_get "$IP" "$TOKEN" "/api/v1/nodes") || {
+    log_error "Error al obtener nodos"
+    exit 1
+  }
 
   # Contadores
-  NODES_TOTAL=0
-  NODES_NEAR_LIMIT=0
-  NODES_CRITICAL=0
-  NODES_WITH_ISSUES=""
+  local NODES_TOTAL=0
+  local NODES_NEAR_LIMIT=0
+  local NODES_CRITICAL=0
+  local NODES_WITH_ISSUES=""
+  local NODES_THRESHOLD=0
 
   # Iterar sobre cada nodo
   while read -r NODE; do
     NODES_TOTAL=$((NODES_TOTAL + 1))
 
     # Chequear condiciones críticas
+    local CONDITIONS
     CONDITIONS=$(echo "$RESPONSE_NODES" | jq -r --arg NODE "$NODE" '
       .items[] | select(.metadata.name==$NODE) | .status.conditions[] |
       select(
@@ -53,19 +59,22 @@ check_node_health() {
     fi
 
     # Límite de pods
+    local MAX_PODS
     MAX_PODS=$(echo "$RESPONSE_NODES" | jq -r --arg NODE "$NODE" '
       .items[] | select(.metadata.name==$NODE) | .status.allocatable.pods | tonumber
     ')
-    LIMIT_PODS=$((MAX_PODS-UMBRAL))
+    local LIMIT_PODS=$((MAX_PODS-UMBRAL))
 
     # Pods actuales en el nodo
-    RESPONSE_PODS=$(api_get "$IP" "$TOKEN" "/api/v1/pods?fieldSelector=spec.nodeName=$NODE,status.phase!=Succeeded,status.phase!=Failed")
+    local RESPONSE_PODS
+    RESPONSE_PODS=$(api_get "$IP" "$TOKEN" "/api/v1/pods?fieldSelector=spec.nodeName=$NODE,status.phase!=Succeeded,status.phase!=Failed") || continue
+    local CURRENT_PODS
     CURRENT_PODS=$(echo "$RESPONSE_PODS" | jq '.items | length')
 
     # Evaluar cerca del límite
     if [ "$CURRENT_PODS" -gt "$LIMIT_PODS" ]; then
       NODES_NEAR_LIMIT=$((NODES_NEAR_LIMIT + 1))
-      NODES_WITH_ISSUES="${NODES_WITH_ISSUES}${NODE}: ${CURRENT_PODS}/${MAX_PODS} pods\n"
+      NODES_WITH_ISSUES="${NODES_WITH_ISSUES}${NODE}: ${CURRENT_PODS}/${MAX_PODS} pods\\n"
     fi
 
   done < <(echo "$RESPONSE_NODES" | jq -r '.items[].metadata.name')
