@@ -33,11 +33,11 @@ check_node_health() {
   NODES_CRITICAL=0
   NODES_WITH_ISSUES=""
 
-  # Iterar sobre cada nodo usando process substitution
+  # Iterar sobre cada nodo
   while read -r NODE; do
     NODES_TOTAL=$((NODES_TOTAL + 1))
 
-    # Condiciones críticas
+    # Chequear condiciones críticas
     CONDITIONS=$(echo "$RESPONSE_NODES" | jq -r --arg NODE "$NODE" '
       .items[] | select(.metadata.name==$NODE) | .status.conditions[] |
       select(
@@ -48,24 +48,21 @@ check_node_health() {
       ) | "\(.type): \(.status) (\(.reason // "No reason"))"
     ')
 
+    if [ -n "$CONDITIONS" ]; then
+      NODES_CRITICAL=$((NODES_CRITICAL + 1))
+    fi
+
     # Límite de pods
     MAX_PODS=$(echo "$RESPONSE_NODES" | jq -r --arg NODE "$NODE" '
       .items[] | select(.metadata.name==$NODE) | .status.allocatable.pods | tonumber
     ')
     LIMIT_PODS=$((MAX_PODS-UMBRAL))
 
-    # Pods actuales en el nodo (solo pods activos, como el scheduler)
+    # Pods actuales en el nodo
     RESPONSE_PODS=$(api_get "$IP" "$TOKEN" "/api/v1/pods?fieldSelector=spec.nodeName=$NODE,status.phase!=Succeeded,status.phase!=Failed")
     CURRENT_PODS=$(echo "$RESPONSE_PODS" | jq '.items | length')
 
-    # Evaluar condición crítica (inmediato)
-    if [ -n "$CONDITIONS" ]; then
-      NODES_CRITICAL=$((NODES_CRITICAL + 1))
-      log_error "✖ Nodo: $NODE - Condiciones críticas"
-      echo "$CONDITIONS" | sed 's/^/    /'
-    fi
-
-    # Evaluar cerca del límite (acumular para chequeo global)
+    # Evaluar cerca del límite
     if [ "$CURRENT_PODS" -gt "$LIMIT_PODS" ]; then
       NODES_NEAR_LIMIT=$((NODES_NEAR_LIMIT + 1))
       NODES_WITH_ISSUES="${NODES_WITH_ISSUES}${NODE}: ${CURRENT_PODS}/${MAX_PODS} pods\n"
@@ -73,18 +70,18 @@ check_node_health() {
 
   done < <(echo "$RESPONSE_NODES" | jq -r '.items[].metadata.name')
 
-  # Evaluar resultado global (solo si no hay críticas previas)
+  # Evaluar resultado
   NODES_THRESHOLD=$((NODES_TOTAL * PORCENTAJE_NODOS / 100))
 
-  if [ "$NODES_CRITICAL" -gt 0 ]; then
-    log_error "✖ Total de nodos con condiciones críticas: $NODES_CRITICAL"
-    exit 1
-  elif [ "$NODES_NEAR_LIMIT" -ge "$NODES_THRESHOLD" ]; then
-    log_error "✖ $NODES_NEAR_LIMIT nodos cerca del límite (60%+) de $NODES_TOTAL nodos"
-    echo -e "$NODES_WITH_ISSUES" | sed 's/^/    /'
+  if [ "$NODES_CRITICAL" -gt 0 ] || [ "$NODES_NEAR_LIMIT" -ge "$NODES_THRESHOLD" ]; then
+    [ "$NODES_CRITICAL" -gt 0 ] && \
+      log_error "✖ Chequeo de condiciones críticas: FALLO ($NODES_CRITICAL nodos)"
+    [ "$NODES_NEAR_LIMIT" -ge "$NODES_THRESHOLD" ] && \
+      log_error "✖ Chequeo de límite de pods: FALLO ($NODES_NEAR_LIMIT/$NODES_TOTAL nodos superan el umbral)" && \
+      echo -e "$NODES_WITH_ISSUES" | sed 's/^/    /'
     exit 1
   else
-    log_success "✔ Chequeo completado (${NODES_NEAR_LIMIT}/${NODES_TOTAL} nodos cerca del límite, umbral no alcanzado)"
+    log_success "✔ Chequeo completado"
   fi
 }
 
