@@ -84,7 +84,7 @@ check_node_health() {
     echo -e "$NODES_WITH_ISSUES" | sed 's/^/    /'
     exit 1
   else
-    log_success "✔ Todos los nodos están OK (${NODES_NEAR_LIMIT}/${NODES_TOTAL} cerca del límite)"
+    log_success "✔ Chequeo completado (${NODES_NEAR_LIMIT}/${NODES_TOTAL} nodos cerca del límite, umbral no alcanzado)"
   fi
 }
 
