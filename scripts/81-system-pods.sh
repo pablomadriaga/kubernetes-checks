@@ -25,10 +25,10 @@ log_info "Entorno: $ENV - MAX_RESTARTS: $MAX_RESTARTS"
 
 source "$ROOT_DIR/lib/api.sh"
 source "$ROOT_DIR/lib/ns.sh"
-source "$ROOT_DIR/lib/excepciones.sh"
+source "$ROOT_DIR/lib/exclusiones-operaciones.sh"
 
 ERR_COUNT=0
-if ! load_cluster_exceptions "$CLUSTER_NAME"; then
+if ! load_operation_exclusions "$CLUSTER_NAME"; then
   exit 1
 fi
 

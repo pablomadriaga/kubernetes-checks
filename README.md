@@ -33,8 +33,8 @@ Cada chequeo es un script independiente, lo que facilita su evolución y manteni
 ├── config
 │   ├── clusters.ndjson # "Definición de clusters"
 │   ├── exclusiones.txt
-│   ├── excepciones-clusters
-│   │   ├── excepciones-example.txt
+│   ├── exclusiones-operaciones
+│   │   ├── exclusiones-example.txt
 │   │   └── README.md
 │   └── ns # "Namespaces a chequear"
 │       ├── customer-ns.txt 
@@ -42,7 +42,7 @@ Cada chequeo es un script independiente, lo que facilita su evolución y manteni
 │       └── system-ns.txt
 ├── lib # "Librerias utilizadas en los scripts"
 │   ├── api.sh
-│   ├── excepciones.sh
+│   ├── exclusiones-operaciones.sh
 │   ├── log.sh
 │   └── ns.sh
 ├── profiles # "Modalidad de ejecución de Scripts"
@@ -52,7 +52,7 @@ Cada chequeo es un script independiente, lo que facilita su evolución y manteni
 ├── resultados
 │   └── # "Un log por script ejecutado"
 └── scripts
-    └── # "scripts disponibles"
+     └── # "scripts adicionales a configurar"
 ```
 
 ## ⚙️ Definición de clústeres
@@ -77,13 +77,13 @@ Este proyecto requiere archivos locales no versionados:
 
 - ./config/clusters.ndjson
 - ./config/exclusiones.txt
-- ./config/excepciones-clusters/excepciones.txt
+- ./config/exclusiones-operaciones/exclusiones.txt
 - ./profiles/$TU_PROFILE.list
 
 Usar como referencia:
 - clusters-example.ndjson
 - exclusiones-example.txt
-- excepciones-clusters/excepciones-example.txt
+- exclusiones-operaciones/exclusiones-example.txt
 
 ---
 
@@ -108,24 +108,24 @@ cluster-lab
 cluster-dev
 ```
 
-## Excepciones por clúster
+## Exclusiones de operaciones por clúster
 
-Las excepciones se configuran en `config/excepciones-clusters/excepciones.txt`, sin modificar `clusters.ndjson`:
+Las exclusiones se configuran en `config/exclusiones-operaciones/exclusiones.txt`, sin modificar `clusters.ndjson`:
 
 ```text
-# cluster;excepcion;valor
-tmc;namespace-opcional;tanzu-system-ingress
-tmc;velero-opcional;si
+# cluster;exclusion;valor
+cluster-1;namespace-opcional;namespace-1
+cluster-1;velero-opcional;si
 ```
 
-Cada línea representa una excepción. Las líneas vacías y las que comienzan con `#` se ignoran. El nombre del clúster debe coincidir exactamente con el campo `name` de `clusters.ndjson`.
+Cada línea representa una exclusión. Las líneas vacías y las que comienzan con `#` se ignoran. El nombre del clúster debe coincidir exactamente con el campo `name` de `clusters.ndjson`.
 
-Excepciones disponibles:
+Exclusiones disponibles:
 
 - `namespace-opcional`: si el namespace no existe, se omite; si existe, se chequea normalmente.
 - `velero-opcional`: si Velero no está instalado, se muestra una advertencia y se omiten backups y restores.
 
-Si no se configura una excepción, se mantiene el comportamiento estricto.
+Si no se configura una exclusión, se mantiene el comportamiento estricto.
 
 ## 🙋 Profiles
 Es la manera de indicar los scripts que se van a ejecutar.
@@ -133,11 +133,19 @@ Es la manera de indicar los scripts que se van a ejecutar.
 ### 📄 daily.list
 
 ```text
-api.sh
-82-nodes-health.sh
-81-system-pods.sh
-6-data-protection.sh
-8-packages.sh
+operacion-1.sh
+operacion-2.sh
+operacion-3.sh
+```
+
+La conectividad con la API se valida automáticamente desde `0-runner.sh`. Cada persona que clone el repositorio debe reemplazar estos nombres por los scripts que quiera ejecutar y crear esos archivos dentro de `scripts/`.
+
+Los nombres deben coincidir exactamente. Por ejemplo:
+
+```text
+operacion-1.sh
+operacion-2.sh
+operacion-3.sh
 ```
 
 ### 📄 weekly.list

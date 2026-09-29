@@ -4,4 +4,4 @@
 # Ignorar todos los .log dentro de la carpeta "resultados"
 resultados/*.log
 .vscode/
-config/excepciones-clusters/excepciones.txt
+config/exclusiones-operaciones/exclusiones.txt

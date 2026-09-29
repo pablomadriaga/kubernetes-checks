@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-EXCEPTIONS_FILE="$ROOT_DIR/config/excepciones-clusters/excepciones.txt"
+OPERATION_EXCLUSIONS_FILE="$ROOT_DIR/config/exclusiones-operaciones/exclusiones.txt"
 OPTIONAL_NAMESPACES=()
 VELERO_OPTIONAL=0
 
@@ -11,7 +11,7 @@ trim_exception_value() {
   printf '%s' "$value"
 }
 
-load_cluster_exceptions() {
+load_operation_exclusions() {
   local cluster_name="$1"
   local cluster
   local exception
@@ -23,7 +23,7 @@ load_cluster_exceptions() {
   OPTIONAL_NAMESPACES=()
   VELERO_OPTIONAL=0
 
-  [[ -f "$EXCEPTIONS_FILE" ]] || return 0
+  [[ -f "$OPERATION_EXCLUSIONS_FILE" ]] || return 0
 
   while IFS=';' read -r cluster exception value extra; do
     line_number=$((line_number + 1))
@@ -36,7 +36,7 @@ load_cluster_exceptions() {
     [[ -z "$cluster" || "$cluster" == \#* ]] && continue
 
     if [[ -n "$extra" || -z "$exception" ]]; then
-      log_error "Formato inválido en $EXCEPTIONS_FILE línea $line_number"
+      log_error "Formato inválido en $OPERATION_EXCLUSIONS_FILE línea $line_number"
       has_errors=1
       continue
     fi
@@ -46,7 +46,7 @@ load_cluster_exceptions() {
     case "$exception" in
       namespace-opcional)
         if [[ -z "$value" ]]; then
-          log_error "Falta el namespace en $EXCEPTIONS_FILE línea $line_number"
+          log_error "Falta el namespace en $OPERATION_EXCLUSIONS_FILE línea $line_number"
           has_errors=1
         else
           OPTIONAL_NAMESPACES+=("$value")
@@ -56,16 +56,16 @@ load_cluster_exceptions() {
         if [[ "$value" == "si" ]]; then
           VELERO_OPTIONAL=1
         else
-          log_error "Valor inválido para velero-opcional en $EXCEPTIONS_FILE línea $line_number (use 'si')"
+          log_error "Valor inválido para velero-opcional en $OPERATION_EXCLUSIONS_FILE línea $line_number (use 'si')"
           has_errors=1
         fi
         ;;
       *)
-        log_error "Excepción desconocida '$exception' en $EXCEPTIONS_FILE línea $line_number"
+        log_error "Exclusión desconocida '$exception' en $OPERATION_EXCLUSIONS_FILE línea $line_number"
         has_errors=1
         ;;
     esac
-  done < <(sed 's/\r$//' "$EXCEPTIONS_FILE")
+  done < <(sed 's/\r$//' "$OPERATION_EXCLUSIONS_FILE")
 
   return "$has_errors"
 }

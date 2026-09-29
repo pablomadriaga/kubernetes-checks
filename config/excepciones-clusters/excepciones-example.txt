@@ -1,3 +1,0 @@
-# cluster;excepcion;valor
-tmc;namespace-opcional;tanzu-system-ingress
-tmc;velero-opcional;si

@@ -16,9 +16,9 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 source "$ROOT_DIR/lib/log.sh"
 source "$ROOT_DIR/lib/api.sh"
-source "$ROOT_DIR/lib/excepciones.sh"
+source "$ROOT_DIR/lib/exclusiones-operaciones.sh"
 
-if ! load_cluster_exceptions "$CLUSTER_NAME"; then
+if ! load_operation_exclusions "$CLUSTER_NAME"; then
   exit 1
 fi
 
