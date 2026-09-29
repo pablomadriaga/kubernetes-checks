@@ -50,6 +50,26 @@ is_optional_namespace() {
   return 1
 }
 
+check_optional_namespace() {
+  local ns="$1"
+  local response
+
+  response=$(api_get "$IP" "$TOKEN" "/api/v1/namespaces/$ns")
+
+  if jq -e '.kind == "Namespace"' <<<"$response" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if jq -e '.kind == "Status" and .reason == "NotFound"' <<<"$response" >/dev/null 2>&1; then
+    log_info "Namespace:$ns NamespaceNotFound (omitido por configuración)"
+    return 10
+  fi
+
+  log_error "Namespace:$ns InvalidAPIResponse"
+  ((ERR_COUNT++))
+  return 1
+}
+
 log_zone "Chequeo de Pods, Deployments, StatefulSets y DaemonSets de sistema"
 
 # ==========================
@@ -64,7 +84,7 @@ check_pods() {
 
   if jq -e '.kind == "Status" and .reason == "NotFound"' <<<"$response" >/dev/null 2>&1; then
     if is_optional_namespace "$ns"; then
-      log_info "Namespace:$ns NamespaceNotFound (omitido por configuración)"
+      return 10
     else
       log_error "Namespace:$ns NamespaceNotFound"
       ((ERR_COUNT++))
@@ -219,7 +239,18 @@ check_daemonsets() {
 
 check_namespace() {
   local ns="$1"
+
+  if is_optional_namespace "$ns"; then
+    check_optional_namespace "$ns"
+    case "$?" in
+      0) ;;
+      10) return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
+
   check_pods "$ns"
+  [[ "$?" -eq 10 ]] && return
   check_deployments "$ns"
   check_statefulsets "$ns"
   check_daemonsets "$ns"

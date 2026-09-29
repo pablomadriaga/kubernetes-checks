@@ -41,6 +41,17 @@ CURRENT_LEVEL=$(level_to_number "$LOG_LEVEL")
 # 🧠 Core Logger
 # ==========================
 
+print_log_message() {
+  if [[ "$#" -eq 1 ]]; then
+    printf '%s' "$1"
+    return
+  fi
+
+  local format="$1"
+  shift
+  printf -- "$format" "$@"
+}
+
 log() {
   local level="$1"
   local color="$2"
@@ -52,14 +63,14 @@ log() {
   # SUCCESS y ERROR siempre visibles
   if [[ "$level" == "SUCCESS" || "$level" == "ERROR" ]]; then
     printf "  ${color}[%s] " "$level"
-    printf "$@"
+    print_log_message "$@"
     printf "${COLOR_RESET}\n"
     return
   fi
 
   if [[ "$level_num" -ge "$CURRENT_LEVEL" ]]; then
     printf "    ${color}[%s] " "$level"
-    printf "$@"
+    print_log_message "$@"
     printf "${COLOR_RESET}\n"
   fi
 }

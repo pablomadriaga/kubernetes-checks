@@ -41,7 +41,7 @@ check_control_plane_pods() {
   CONTROL_PLANE_COUNT=$(jq 'length' <<< "$CONTROL_PLANE_JSON")
 
   if [ "$CONTROL_PLANE_COUNT" -eq 0 ]; then
-    log_warning "No se encontraron nodos control plane."
+    log_warn "No se encontraron nodos control plane."
     return
   fi
 
