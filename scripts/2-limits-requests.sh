@@ -8,6 +8,8 @@ CERTIFICATE=$3
 IP=$4
 ENV=$5
 
+#LOG_LEVEL=INFO
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 

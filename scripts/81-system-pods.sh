@@ -8,6 +8,8 @@ CERTIFICATE=$3
 IP=$4
 ENV=$5
 
+#LOG_LEVEL=INFO
+
 if [[ "${ENV,,}" == "prod" || "${ENV,,}" == "production" ]]; then
   MAX_RESTARTS=0
 else

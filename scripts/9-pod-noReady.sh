@@ -8,6 +8,8 @@ CERTIFICATE=$3
 IP=$4
 ENV=$5
 
+#LOG_LEVEL=INFO
+
 WIDTH=$(tput cols)
 MAX_NS=$((WIDTH / 3))
 

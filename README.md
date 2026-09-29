@@ -163,6 +163,22 @@ El script:
 - Muestra el resultado en consola.
 - Guarda logs por chequeo en el directorio `resultados/`.
 
+## Niveles de log
+
+Cada script de chequeo tiene su propio nivel de log independiente. La configuración se encuentra al comienzo de cada script, antes de cargar `lib/log.sh`:
+
+```bash
+#LOG_LEVEL=INFO
+```
+
+Para activar el nivel configurado, se debe quitar el comentario. Los niveles disponibles, de menor a mayor severidad, son:
+
+```text
+DEBUG < INFO < WARN < ERROR
+```
+
+El nivel predeterminado es `ERROR`. Los mensajes `SUCCESS` y `ERROR` siempre se muestran, independientemente del nivel configurado. `DEBUG` muestra también los mensajes `INFO`, `WARN` y `DEBUG` del script correspondiente.
+
 ---
 
 ## 📊 Ejemplo de salida
