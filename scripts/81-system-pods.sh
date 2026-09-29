@@ -25,30 +25,12 @@ log_info "Entorno: $ENV - MAX_RESTARTS: $MAX_RESTARTS"
 
 source "$ROOT_DIR/lib/api.sh"
 source "$ROOT_DIR/lib/ns.sh"
+source "$ROOT_DIR/lib/excepciones.sh"
 
 ERR_COUNT=0
-OPTIONAL_NS_FILE="$ROOT_DIR/config/optional-ns/${CLUSTER_NAME}.txt"
-OPTIONAL_NAMESPACES=()
-
-load_optional_namespaces() {
-  [[ -f "$OPTIONAL_NS_FILE" ]] || return 0
-
-  mapfile -t OPTIONAL_NAMESPACES < <(
-    sed 's/\r$//; s/^[[:space:]]*//; s/[[:space:]]*$//' "$OPTIONAL_NS_FILE" |
-      grep -vE '^$|^#'
-  )
-}
-
-is_optional_namespace() {
-  local ns="$1"
-  local optional
-
-  for optional in "${OPTIONAL_NAMESPACES[@]}"; do
-    [[ "$optional" == "$ns" ]] && return 0
-  done
-
-  return 1
-}
+if ! load_cluster_exceptions "$CLUSTER_NAME"; then
+  exit 1
+fi
 
 check_optional_namespace() {
   local ns="$1"
@@ -83,7 +65,7 @@ check_pods() {
   response=$(api_get "$IP" "$TOKEN" "/api/v1/namespaces/$ns/pods")
 
   if jq -e '.kind == "Status" and .reason == "NotFound"' <<<"$response" >/dev/null 2>&1; then
-    if is_optional_namespace "$ns"; then
+    if is_namespace_optional "$ns"; then
       return 10
     else
       log_error "Namespace:$ns NamespaceNotFound"
@@ -240,7 +222,7 @@ check_daemonsets() {
 check_namespace() {
   local ns="$1"
 
-  if is_optional_namespace "$ns"; then
+  if is_namespace_optional "$ns"; then
     check_optional_namespace "$ns"
     case "$?" in
       0) ;;
@@ -257,8 +239,6 @@ check_namespace() {
 }
 
 main() {
-  load_optional_namespaces
-
   namespaces=$(jq -r '.[]' <<< "$NAMESPACES_JSON")
 
   for ns in $namespaces; do

@@ -33,7 +33,8 @@ Cada chequeo es un script independiente, lo que facilita su evolución y manteni
 ├── config
 │   ├── clusters.ndjson # "Definición de clusters"
 │   ├── exclusiones.txt
-│   ├── optional-ns # "Namespaces opcionales por cluster"
+│   ├── excepciones-clusters
+│   │   ├── excepciones-example.txt
 │   │   └── README.md
 │   └── ns # "Namespaces a chequear"
 │       ├── customer-ns.txt 
@@ -41,6 +42,7 @@ Cada chequeo es un script independiente, lo que facilita su evolución y manteni
 │       └── system-ns.txt
 ├── lib # "Librerias utilizadas en los scripts"
 │   ├── api.sh
+│   ├── excepciones.sh
 │   ├── log.sh
 │   └── ns.sh
 ├── profiles # "Modalidad de ejecución de Scripts"
@@ -75,11 +77,13 @@ Este proyecto requiere archivos locales no versionados:
 
 - ./config/clusters.ndjson
 - ./config/exclusiones.txt
+- ./config/excepciones-clusters/excepciones.txt
 - ./profiles/$TU_PROFILE.list
 
 Usar como referencia:
 - clusters-example.ndjson
 - exclusiones-example.txt
+- excepciones-clusters/excepciones-example.txt
 
 ---
 
@@ -104,26 +108,24 @@ cluster-lab
 cluster-dev
 ```
 
-## Namespaces opcionales por clúster
+## Excepciones por clúster
 
-Si un namespace puede no existir en un clúster particular, se puede crear un archivo con el nombre exacto del clúster en `config/optional-ns/`:
-
-```text
-config/optional-ns/cluster-qa.txt
-```
-
-El archivo contiene un namespace por línea:
+Las excepciones se configuran en `config/excepciones-clusters/excepciones.txt`, sin modificar `clusters.ndjson`:
 
 ```text
-tanzu-system-ingress
+# cluster;excepcion;valor
+tmc;namespace-opcional;tanzu-system-ingress
+tmc;velero-opcional;si
 ```
 
-El comportamiento es el siguiente:
+Cada línea representa una excepción. Las líneas vacías y las que comienzan con `#` se ignoran. El nombre del clúster debe coincidir exactamente con el campo `name` de `clusters.ndjson`.
 
-- Si el namespace no existe y está listado en el archivo, se omite el error.
-- Si el namespace existe, se ejecutan los chequeos normalmente.
-- Si el namespace no existe y no está listado, se informa como error.
-- Si otro clúster necesita la misma excepción, se crea su propio archivo.
+Excepciones disponibles:
+
+- `namespace-opcional`: si el namespace no existe, se omite; si existe, se chequea normalmente.
+- `velero-opcional`: si Velero no está instalado, se muestra una advertencia y se omiten backups y restores.
+
+Si no se configura una excepción, se mantiene el comportamiento estricto.
 
 ## 🙋 Profiles
 Es la manera de indicar los scripts que se van a ejecutar.
@@ -177,7 +179,7 @@ Para activar el nivel configurado, se debe quitar el comentario. Los niveles dis
 DEBUG < INFO < WARN < ERROR
 ```
 
-El nivel predeterminado es `ERROR`. Los mensajes `SUCCESS` y `ERROR` siempre se muestran, independientemente del nivel configurado. `DEBUG` muestra también los mensajes `INFO`, `WARN` y `DEBUG` del script correspondiente.
+El nivel predeterminado es `ERROR`. Los mensajes `WARN`, `SUCCESS` y `ERROR` siempre se muestran, independientemente del nivel configurado. `DEBUG` muestra también los mensajes `INFO`, `WARN` y `DEBUG` del script correspondiente.
 
 ---
 
