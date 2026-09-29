@@ -18,8 +18,8 @@ COLOR_RESET="\e[0m"
 # Orden jerárquico:
 # DEBUG < INFO < WARN < ERROR
 #
-# WARN, SUCCESS y ERROR son especiales:
-# - Siempre visibles
+# SUCCESS es especial:
+# - Siempre visible (como ERROR)
 # - No afecta jerarquía
 #
 
@@ -60,8 +60,8 @@ log() {
   local level_num
   level_num=$(level_to_number "$level")
 
-  # WARN, SUCCESS y ERROR siempre visibles
-  if [[ "$level" == "WARN" || "$level" == "SUCCESS" || "$level" == "ERROR" ]]; then
+  # SUCCESS y ERROR siempre visibles
+  if [[ "$level" == "SUCCESS" || "$level" == "ERROR" ]]; then
     printf "  ${color}[%s] " "$level"
     print_log_message "$@"
     printf "${COLOR_RESET}\n"

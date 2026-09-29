@@ -179,7 +179,7 @@ Para activar el nivel configurado, se debe quitar el comentario. Los niveles dis
 DEBUG < INFO < WARN < ERROR
 ```
 
-El nivel predeterminado es `ERROR`. Los mensajes `WARN`, `SUCCESS` y `ERROR` siempre se muestran, independientemente del nivel configurado. `DEBUG` muestra también los mensajes `INFO`, `WARN` y `DEBUG` del script correspondiente.
+El nivel predeterminado es `ERROR`. Los mensajes `SUCCESS` y `ERROR` siempre se muestran, independientemente del nivel configurado. `WARN`, `INFO` y `DEBUG` dependen del nivel configurado.
 
 ---
 

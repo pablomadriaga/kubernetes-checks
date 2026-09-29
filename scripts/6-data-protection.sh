@@ -34,7 +34,8 @@ log_zone "Chequeo de Dataprotection"
 # Comprobar la respuesta estructurada del API
 if jq -e '.kind == "Status" and .reason == "NotFound"' <<<"$velero_crd" >/dev/null 2>&1; then
   if is_velero_optional; then
-    log_warn "Velero no está instalado en este cluster. Omitiendo la comprobación de backups y restores"
+    printf '  %s\n' \
+      "Velero no está instalado en este cluster. Omitiendo la comprobación de backups y restores"
     exit 0
   fi
 
