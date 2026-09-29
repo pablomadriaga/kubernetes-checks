@@ -25,6 +25,28 @@ source "$ROOT_DIR/lib/api.sh"
 source "$ROOT_DIR/lib/ns.sh"
 
 ERR_COUNT=0
+OPTIONAL_NS_FILE="$ROOT_DIR/config/optional-ns/${CLUSTER_NAME}.txt"
+OPTIONAL_NAMESPACES=()
+
+load_optional_namespaces() {
+  [[ -f "$OPTIONAL_NS_FILE" ]] || return 0
+
+  mapfile -t OPTIONAL_NAMESPACES < <(
+    sed 's/\r$//; s/^[[:space:]]*//; s/[[:space:]]*$//' "$OPTIONAL_NS_FILE" |
+      grep -vE '^$|^#'
+  )
+}
+
+is_optional_namespace() {
+  local ns="$1"
+  local optional
+
+  for optional in "${OPTIONAL_NAMESPACES[@]}"; do
+    [[ "$optional" == "$ns" ]] && return 0
+  done
+
+  return 1
+}
 
 log_zone "Chequeo de Pods, Deployments, StatefulSets y DaemonSets de sistema"
 
@@ -37,6 +59,22 @@ check_pods() {
   log_info "----- Checking Pods in namespace=$ns -----"
 
   response=$(api_get "$IP" "$TOKEN" "/api/v1/namespaces/$ns/pods")
+
+  if jq -e '.kind == "Status" and .reason == "NotFound"' <<<"$response" >/dev/null 2>&1; then
+    if is_optional_namespace "$ns"; then
+      log_info "Namespace:$ns NamespaceNotFound (omitido por configuración)"
+    else
+      log_error "Namespace:$ns NamespaceNotFound"
+      ((ERR_COUNT++))
+    fi
+    return
+  fi
+
+  if ! jq -e '.kind == "PodList" and (.items | type == "array")' <<<"$response" >/dev/null 2>&1; then
+    log_error "Namespace:$ns InvalidAPIResponse"
+    ((ERR_COUNT++))
+    return
+  fi
 
   pod_count=$(jq '.items | length' <<<"$response")
   log_info "Pods count: $pod_count"
@@ -186,6 +224,7 @@ check_namespace() {
 }
 
 main() {
+  load_optional_namespaces
 
   namespaces=$(jq -r '.[]' <<< "$NAMESPACES_JSON")
 

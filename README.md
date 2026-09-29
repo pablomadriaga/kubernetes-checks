@@ -33,6 +33,8 @@ Cada chequeo es un script independiente, lo que facilita su evolución y manteni
 ├── config
 │   ├── clusters.ndjson # "Definición de clusters"
 │   ├── exclusiones.txt
+│   ├── optional-ns # "Namespaces opcionales por cluster"
+│   │   └── README.md
 │   └── ns # "Namespaces a chequear"
 │       ├── customer-ns.txt 
 │       ├── packages.txt
@@ -73,7 +75,7 @@ Este proyecto requiere archivos locales no versionados:
 
 - ./config/clusters.ndjson
 - ./config/exclusiones.txt
-- ./profile/$TU_PROFILE.list
+- ./profiles/$TU_PROFILE.list
 
 Usar como referencia:
 - clusters-example.ndjson
@@ -84,10 +86,12 @@ Usar como referencia:
 ### 📄 Ejemplo de `clusters.ndjson`
 
 ```json
-{"schema":1,"name":"cluster-qa","api":{"endpoint":"10.0.0.12","port":6443},"auth":{"token":"eyJh...","ca_cert_b64":"LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"}}
-{"schema":1,"name":"cluster-prod","api":{"endpoint":"10.0.0.15","port":6443},"auth":{"token":"eyJx...","ca_cert_b64":"LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"}}
+{"schema":1,"name":"cluster-qa","api":{"ip":"10.0.0.12","port":6443},"auth":{"token":"eyJh...","ca_cert_b64":"LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"}}
+{"schema":1,"name":"cluster-prod","api":{"ip":"10.0.0.15","port":6443},"auth":{"token":"eyJx...","ca_cert_b64":"LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"}}
 ```
 El formato NDJSON permite extender cada objeto con metadatos adicionales sin romper compatibilidad.
+
+Actualmente las conexiones se realizan contra el puerto `6443`. El campo `ca_cert_b64` se conserva en la configuración, pero por el momento se omite; se utilizará en una futura versión.
 
 ---
 
@@ -100,13 +104,34 @@ cluster-lab
 cluster-dev
 ```
 
+## Namespaces opcionales por clúster
+
+Si un namespace puede no existir en un clúster particular, se puede crear un archivo con el nombre exacto del clúster en `config/optional-ns/`:
+
+```text
+config/optional-ns/cluster-qa.txt
+```
+
+El archivo contiene un namespace por línea:
+
+```text
+tanzu-system-ingress
+```
+
+El comportamiento es el siguiente:
+
+- Si el namespace no existe y está listado en el archivo, se omite el error.
+- Si el namespace existe, se ejecutan los chequeos normalmente.
+- Si el namespace no existe y no está listado, se informa como error.
+- Si otro clúster necesita la misma excepción, se crea su propio archivo.
+
 ## 🙋 Profiles
 Es la manera de indicar los scripts que se van a ejecutar.
 
 ### 📄 daily.list
 
 ```text
-1-test-api.sh
+api.sh
 82-nodes-health.sh
 81-system-pods.sh
 6-data-protection.sh
