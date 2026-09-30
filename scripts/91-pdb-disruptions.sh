@@ -41,7 +41,8 @@ if ! jq -e '
   all(.items[];
     (.metadata.namespace | type == "string") and
     (.metadata.name | type == "string") and
-    (.status.disruptionsAllowed | type == "number")
+    (.status.disruptionsAllowed | type == "number") and
+    (.status.expectedPods | type == "number")
   )
 ' <<<"$response" >/dev/null 2>&1; then
   log_error "✖ Error al consultar PDBs: respuesta inválida de la API"
@@ -76,7 +77,7 @@ fi
 
 blocked_pdbs=$(jq '[
   .items[]
-  | select(.status.disruptionsAllowed == 0)
+  | select(.status.disruptionsAllowed == 0 and .status.expectedPods > 0)
   | {
       namespace: .metadata.namespace,
       name: .metadata.name,
@@ -85,11 +86,37 @@ blocked_pdbs=$(jq '[
 ]' <<<"$response")
 
 blocked_count=$(jq 'length' <<<"$blocked_pdbs")
-log_debug "PDBs con disruptionsAllowed=0: %s" "$blocked_count"
+log_debug "PDBs bloqueantes (disruptionsAllowed=0 y expectedPods>0): %s" "$blocked_count"
+
+warning_pdbs=$(jq '[
+  .items[]
+  | select(.status.disruptionsAllowed == 0 and .status.expectedPods == 0)
+  | {
+      namespace: .metadata.namespace,
+      name: .metadata.name,
+      disruptionsAllowed: .status.disruptionsAllowed
+    }
+]' <<<"$response")
+
+warning_count=$(jq 'length' <<<"$warning_pdbs")
+log_debug "PDBs con disruptionsAllowed=0 y expectedPods=0: %s" "$warning_count"
+
+if [[ "$warning_count" -gt 0 ]]; then
+  log_warn "PDBs sin pods asociados: %s" "$warning_count"
+
+  while IFS=$'\t' read -r namespace name disruptions_allowed; do
+    log_warn "  PDB %s/%s - disruptionsAllowed=%s, expectedPods=0" \
+      "$namespace" "$name" "$disruptions_allowed"
+  done < <(
+    jq -r '.[] | [.namespace, .name, .disruptionsAllowed] | @tsv' <<<"$warning_pdbs"
+  )
+fi
 
 if [[ "$blocked_count" -eq 0 ]]; then
   if [[ "$total_pdbs" -eq 0 ]]; then
     log_success "✔ No se encontraron PDBs - OK"
+  elif [[ "$warning_count" -gt 0 ]]; then
+    log_success "✔ No se encontraron PDBs bloqueantes - OK"
   else
     log_success "✔ Todos los PDBs permiten al menos una disrupción - OK"
   fi
