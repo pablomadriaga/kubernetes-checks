@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -uo pipefail
+IFS=$'\n\t'
+
+if [[ "$#" -lt 5 ]]; then
+  printf 'Uso: %s <cluster> <token> <certificate> <ip> <environment>\n' "$0" >&2
+  exit 2
+fi
+
+readonly CLUSTER_NAME="$1"
+readonly TOKEN="$2"
+readonly CERTIFICATE="$3"
+readonly IP="$4"
+readonly ENV="$5"
+
+#LOG_LEVEL=INFO
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+
+source "$ROOT_DIR/lib/log.sh"
+source "$ROOT_DIR/lib/api.sh"
+
+readonly PDBS_PATH="/apis/policy/v1/poddisruptionbudgets"
+
+log_zone "Chequeo de PodDisruptionBudgets"
+
+response=$(api_get "$IP" "$TOKEN" "$PDBS_PATH")
+request_status=$?
+
+if [[ "$request_status" -ne 0 || -z "$response" ]]; then
+  log_error "✖ Error al consultar PDBs"
+  exit 2
+fi
+
+if ! jq -e '
+  .kind == "PodDisruptionBudgetList" and
+  (.items | type == "array") and
+  all(.items[];
+    (.metadata.namespace | type == "string") and
+    (.metadata.name | type == "string") and
+    (.status.disruptionsAllowed | type == "number")
+  )
+' <<<"$response" >/dev/null 2>&1; then
+  log_error "✖ Error al consultar PDBs: respuesta inválida de la API"
+  exit 2
+fi
+
+blocked_pdbs=$(jq '[
+  .items[]
+  | select(.status.disruptionsAllowed == 0)
+  | {
+      namespace: .metadata.namespace,
+      name: .metadata.name,
+      disruptionsAllowed: .status.disruptionsAllowed
+    }
+]' <<<"$response")
+
+blocked_count=$(jq 'length' <<<"$blocked_pdbs")
+
+if [[ "$blocked_count" -eq 0 ]]; then
+  if [[ "$(jq '.items | length' <<<"$response")" -eq 0 ]]; then
+    log_success "✔ No se encontraron PDBs - OK"
+  else
+    log_success "✔ Todos los PDBs permiten al menos una disrupción - OK"
+  fi
+  exit 0
+fi
+
+log_error "✖ PDBs con disruptionsAllowed=0: %s" "$blocked_count"
+
+while IFS=$'\t' read -r namespace name disruptions_allowed; do
+  log_error "  PDB %s/%s - disruptionsAllowed=%s" \
+    "$namespace" "$name" "$disruptions_allowed"
+done < <(
+  jq -r '.[] | [.namespace, .name, .disruptionsAllowed] | @tsv' <<<"$blocked_pdbs"
+)
+
+exit 1
