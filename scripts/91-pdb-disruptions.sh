@@ -25,6 +25,7 @@ readonly PDBS_PATH="/apis/policy/v1/poddisruptionbudgets"
 
 log_zone "Chequeo de PodDisruptionBudgets"
 log_info "Consultando PDBs en el cluster $CLUSTER_NAME"
+log_debug "Endpoint consultado: ${PDBS_PATH}"
 
 response=$(api_get "$IP" "$TOKEN" "$PDBS_PATH")
 request_status=$?
@@ -50,6 +51,28 @@ fi
 total_pdbs=$(jq '.items | length' <<<"$response")
 log_info "PDBs encontrados: %s" "$total_pdbs"
 log_debug "Respuesta validada como PodDisruptionBudgetList"
+
+if [[ "$total_pdbs" -gt 0 ]]; then
+  while IFS=$'\t' read -r namespace name disruptions_allowed min_available max_unavailable current_healthy desired_healthy expected_pods selector; do
+    log_debug "PDB $namespace/$name: disruptionsAllowed=$disruptions_allowed minAvailable=$min_available maxUnavailable=$max_unavailable currentHealthy=$current_healthy desiredHealthy=$desired_healthy expectedPods=$expected_pods selector=$selector"
+  done < <(
+    jq -r '
+      .items[]
+      | [
+          .metadata.namespace,
+          .metadata.name,
+          ((.status.disruptionsAllowed // "-") | tostring),
+          ((.spec.minAvailable // "-") | tostring),
+          ((.spec.maxUnavailable // "-") | tostring),
+          ((.status.currentHealthy // "-") | tostring),
+          ((.status.desiredHealthy // "-") | tostring),
+          ((.status.expectedPods // "-") | tostring),
+          ((.spec.selector // {}) | tojson)
+        ]
+      | @tsv
+    ' <<<"$response"
+  )
+fi
 
 blocked_pdbs=$(jq '[
   .items[]
