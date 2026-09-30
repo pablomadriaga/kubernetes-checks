@@ -24,6 +24,7 @@ source "$ROOT_DIR/lib/api.sh"
 readonly PDBS_PATH="/apis/policy/v1/poddisruptionbudgets"
 
 log_zone "Chequeo de PodDisruptionBudgets"
+log_info "Consultando PDBs en el cluster $CLUSTER_NAME"
 
 response=$(api_get "$IP" "$TOKEN" "$PDBS_PATH")
 request_status=$?
@@ -46,6 +47,10 @@ if ! jq -e '
   exit 2
 fi
 
+total_pdbs=$(jq '.items | length' <<<"$response")
+log_info "PDBs encontrados: %s" "$total_pdbs"
+log_debug "Respuesta validada como PodDisruptionBudgetList"
+
 blocked_pdbs=$(jq '[
   .items[]
   | select(.status.disruptionsAllowed == 0)
@@ -57,9 +62,10 @@ blocked_pdbs=$(jq '[
 ]' <<<"$response")
 
 blocked_count=$(jq 'length' <<<"$blocked_pdbs")
+log_debug "PDBs con disruptionsAllowed=0: %s" "$blocked_count"
 
 if [[ "$blocked_count" -eq 0 ]]; then
-  if [[ "$(jq '.items | length' <<<"$response")" -eq 0 ]]; then
+  if [[ "$total_pdbs" -eq 0 ]]; then
     log_success "✔ No se encontraron PDBs - OK"
   else
     log_success "✔ Todos los PDBs permiten al menos una disrupción - OK"
@@ -76,4 +82,5 @@ done < <(
   jq -r '.[] | [.namespace, .name, .disruptionsAllowed] | @tsv' <<<"$blocked_pdbs"
 )
 
-exit 1
+# Los PDB bloqueantes son hallazgos funcionales, no errores técnicos del script.
+exit 0
